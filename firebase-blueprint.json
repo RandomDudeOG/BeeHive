@@ -1,0 +1,239 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A student profile on the Beehive platform.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The Firebase Auth UID of the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "The chosen username of the student."
+        },
+        "dob": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of birth in YYYY-MM-DD format."
+        },
+        "location": {
+          "type": "string",
+          "description": "The city or location of the student."
+        },
+        "grade": {
+          "type": "number",
+          "description": "The grade level of the student (9-12)."
+        },
+        "interests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "An array of interests or tags."
+        },
+        "bio": {
+          "type": "string",
+          "description": "A short bio about the student."
+        },
+        "contact": {
+          "type": "object",
+          "properties": {
+            "discord": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "phone": { "type": "string" }
+          },
+          "description": "Optional contact information."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the profile was last updated."
+        }
+      },
+      "required": ["uid", "username", "dob", "location", "grade", "createdAt", "updatedAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A project showcased by a student.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The title of the project."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the project."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags associated with the project."
+        },
+        "creatorId": {
+          "type": "string",
+          "description": "The UID of the user who created the project."
+        },
+        "creatorName": {
+          "type": "string",
+          "description": "The username of the creator."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the project was created."
+        }
+      },
+      "required": ["title", "description", "creatorId", "creatorName", "createdAt"]
+    },
+    "Opportunity": {
+      "title": "Opportunity",
+      "description": "An internship, job, or volunteer role found for a student.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "organization": { "type": "string" },
+        "location": { "type": "string" },
+        "type": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "savedBy": { "type": "array", "items": { "type": "string" } },
+        "generatedFor": { "type": "string" }
+      },
+      "required": ["title", "organization", "location", "type", "tags", "description", "url", "createdAt", "generatedFor"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A notification for a user.",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "type": { "type": "string" },
+        "projectId": { "type": "string" },
+        "projectTitle": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientId", "actorId", "actorName", "type", "read", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A conversation between two users.",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["participants"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a conversation.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "flagged": { "type": "boolean" },
+        "category": { "type": "string", "enum": ["safe", "toxic", "spam", "inappropriate"] },
+        "status": { "type": "string", "enum": ["sent", "flagged", "hidden"] },
+        "reports": { "type": "number" },
+        "reportedBy": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["senderId", "receiverId", "text", "timestamp", "flagged", "category", "status", "reports", "reportedBy"]
+    },
+    "MessageLog": {
+      "title": "MessageLog",
+      "description": "A log of a message sent or received by a user.",
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "from": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "flagged": { "type": "boolean" },
+        "category": { "type": "string" },
+        "aiConfidence": { "type": "number" }
+      },
+      "required": ["to", "from", "text", "timestamp", "flagged", "category", "aiConfidence"]
+    },
+    "ModerationStatus": {
+      "title": "ModerationStatus",
+      "description": "Moderation status for a user.",
+      "type": "object",
+      "properties": {
+        "flagCount": { "type": "number" },
+        "lastFlaggedAt": { "type": "number" },
+        "restricted": { "type": "boolean" }
+      },
+      "required": ["flagCount", "lastFlaggedAt", "restricted"]
+    },
+    "FlaggedMessage": {
+      "title": "FlaggedMessage",
+      "description": "A message flagged by AI or users.",
+      "type": "object",
+      "properties": {
+        "messageRef": { "type": "string" },
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string" },
+        "category": { "type": "string" },
+        "flaggedAt": { "type": "number" },
+        "aiConfidence": { "type": "number" },
+        "reports": { "type": "number" }
+      },
+      "required": ["messageRef", "senderId", "receiverId", "text", "category", "flaggedAt", "aiConfidence", "reports"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores student profiles."
+    },
+    "/users/{userId}/messageLogs/{messageId}": {
+      "schema": { "$ref": "#/entities/MessageLog" },
+      "description": "Stores logs of messages for a user."
+    },
+    "/users/{userId}/moderation/status": {
+      "schema": { "$ref": "#/entities/ModerationStatus" },
+      "description": "Stores moderation status for a user."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Stores student projects."
+    },
+    "/opportunities/{opportunityId}": {
+      "schema": { "$ref": "#/entities/Opportunity" },
+      "description": "Stores opportunities generated for students."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Stores user notifications."
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Stores conversations between users."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores messages in a conversation."
+    },
+    "/flaggedMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/FlaggedMessage" },
+      "description": "Stores flagged messages for moderation."
+    }
+  }
+}

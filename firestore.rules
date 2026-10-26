@@ -1,0 +1,334 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches auth.uid)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - username: string (required, 1-30 chars)
+    //   - dob: string (required, YYYY-MM-DD)
+    //   - location: string (required, 1-100 chars)
+    //   - grade: number (required, 9-12)
+    //   - interests: list of strings (optional, max 10 items, max 30 chars each)
+    //   - bio: string (optional, max 500 chars)
+    //   - contact: map (optional, discord, email, phone)
+    //   - createdAt: timestamp (required, immutable)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: projects
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required, 1-100 chars)
+    //   - description: string (required, 1-2000 chars)
+    //   - tags: list of strings (optional, max 5 items, max 30 chars each)
+    //   - creatorId: string (required, immutable, matches auth.uid)
+    //   - creatorName: string (required, 1-30 chars)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+    
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$");
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    function isValidList(listData, maxSize, maxItemSize) {
+      return listData is list && listData.size() <= maxSize;
+      // Note: Full item size validation requires a loop or map which isn't directly supported in rules without custom functions, 
+      // but we can enforce the list size and type.
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      let validUid = !('uid' in data) || data.uid is string;
+      let validUsername = !('username' in data) || data.username is string;
+      let validDob = !('dob' in data) || data.dob is string;
+      let validLocation = !('location' in data) || data.location is string;
+      let validGrade = !('grade' in data) || data.grade is number;
+      
+      let validInterests = !('interests' in data) || data.interests is list;
+      let validBio = !('bio' in data) || data.bio is string;
+      
+      let validContact = !('contact' in data) || data.contact is map;
+      
+      let validTimestamps = !('createdAt' in data) || data.createdAt is timestamp;
+
+      return validUid && validUsername && validDob && validLocation && validGrade && validInterests && validBio && validContact && validTimestamps;
+    }
+
+    function isValidProject(data) {
+      let validTitle = !('title' in data) || data.title is string;
+      let validDesc = !('description' in data) || data.description is string;
+      let validTags = !('tags' in data) || data.tags is list;
+      let validCreatorId = !('creatorId' in data) || (data.creatorId is string && data.creatorId == request.auth.uid);
+      let validCreatorName = !('creatorName' in data) || data.creatorName is string;
+      let validTimestamp = !('createdAt' in data) || data.createdAt is timestamp;
+
+      return validTitle && validDesc && validTags && validCreatorId && validCreatorName && validTimestamp;
+    }
+
+    function isValidComment(data) {
+      let validText = !('text' in data) || data.text is string;
+      let validAuthorId = !('authorId' in data) || (data.authorId is string && data.authorId == request.auth.uid);
+      let validAuthorName = !('authorName' in data) || data.authorName is string;
+      let validTimestamp = !('createdAt' in data) || data.createdAt is timestamp;
+      return validText && validAuthorId && validAuthorName && validTimestamp;
+    }
+
+    function isValidOpportunity(data) {
+      let validTitle = !('title' in data) || data.title is string;
+      let validOrg = !('organization' in data) || data.organization is string;
+      let validLoc = !('location' in data) || data.location is string;
+      let validType = !('type' in data) || data.type is string;
+      let validTags = !('tags' in data) || data.tags is list;
+      let validDesc = !('description' in data) || data.description is string;
+      let validUrl = !('url' in data) || data.url is string;
+      let validSavedBy = !('savedBy' in data) || data.savedBy is list;
+      let validGeneratedFor = !('generatedFor' in data) || (data.generatedFor is string && data.generatedFor == request.auth.uid);
+      let validTimestamp = !('createdAt' in data) || data.createdAt is timestamp;
+
+      return validTitle && validOrg && validLoc && validType && validTags && validDesc && validUrl && validSavedBy && validGeneratedFor && validTimestamp;
+    }
+
+    function isValidNotification(data) {
+      let validRecipient = !('recipientId' in data) || data.recipientId is string;
+      let validActor = !('actorId' in data) || (data.actorId is string && data.actorId == request.auth.uid);
+      let validActorName = !('actorName' in data) || data.actorName is string;
+      let validType = !('type' in data) || data.type is string;
+      let validRead = !('read' in data) || data.read is bool;
+      let validTimestamp = !('createdAt' in data) || data.createdAt is timestamp;
+      
+      let validProjectId = !('projectId' in data) || data.projectId is string;
+      let validProjectTitle = !('projectTitle' in data) || data.projectTitle is string;
+
+      return validRecipient && validActor && validActorName && validType && validRead && validTimestamp && validProjectId && validProjectTitle;
+    }
+
+    function isValidConversation(data) {
+      return hasRequiredFields(['participants']) &&
+             data.participants is list &&
+             data.participants.size() == 2 &&
+             request.auth.uid in data.participants;
+    }
+
+    function isValidMessage(data) {
+      let validSender = !('senderId' in data) || (data.senderId is string && data.senderId == request.auth.uid);
+      let validReceiver = !('receiverId' in data) || data.receiverId is string;
+      let validText = !('text' in data) || data.text is string;
+      let validTimestamp = !('timestamp' in data) || data.timestamp is number;
+      let validFlagged = !('flagged' in data) || data.flagged is bool;
+      let validCategory = !('category' in data) || data.category in ['safe', 'toxic', 'spam', 'inappropriate'];
+      let validStatus = !('status' in data) || data.status in ['sent', 'flagged', 'hidden'];
+      let validReports = !('reports' in data) || data.reports is number;
+      let validReportedBy = !('reportedBy' in data) || data.reportedBy is list;
+      
+      return validSender && validReceiver && validText && validTimestamp && validFlagged && validCategory && validStatus && validReports && validReportedBy;
+    }
+
+    function isValidMessageLog(data) {
+      let validTo = !('to' in data) || data.to is string;
+      let validFrom = !('from' in data) || data.from is string;
+      let validText = !('text' in data) || data.text is string;
+      let validTimestamp = !('timestamp' in data) || data.timestamp is number;
+      let validFlagged = !('flagged' in data) || data.flagged is bool;
+      let validCategory = !('category' in data) || data.category is string;
+      let validAiConfidence = !('aiConfidence' in data) || data.aiConfidence is number;
+      
+      return validTo && validFrom && validText && validTimestamp && validFlagged && validCategory && validAiConfidence;
+    }
+
+    function isValidFlaggedMessage(data) {
+      let validMessageRef = !('messageRef' in data) || data.messageRef is string;
+      let validSenderId = !('senderId' in data) || data.senderId is string;
+      let validReceiverId = !('receiverId' in data) || data.receiverId is string;
+      let validText = !('text' in data) || data.text is string;
+      let validCategory = !('category' in data) || data.category is string;
+      let validFlaggedAt = !('flaggedAt' in data) || data.flaggedAt is number;
+      let validAiConfidence = !('aiConfidence' in data) || data.aiConfidence is number;
+      let validReports = !('reports' in data) || data.reports is number;
+      
+      return validMessageRef && validSenderId && validReceiverId && validText && validCategory && validFlaggedAt && validAiConfidence && validReports;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Read: Any authenticated user can read any profile
+      allow read: if isAuthenticated();
+      
+      // Create: Users can only create their own profile
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
+      
+      // Update: Users can only update their own profile. uid and createdAt are immutable.
+      // OR any user can update the followers array
+      allow update: if isAuthenticated() && 
+                    (
+                      (isOwner(userId) && 
+                       isValidUser(request.resource.data) && 
+                       uidNotModified() &&
+                       (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt))
+                      ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']) &&
+                       request.resource.data.followers is list)
+                    );
+                    
+      // Delete: Users can only delete their own profile
+      allow delete: if isOwner(userId);
+    }
+
+    match /projects/{projectId} {
+      // Read: Any authenticated user can read all projects
+      allow read: if isAuthenticated();
+      
+      // Create: Any authenticated user can create a project
+      allow create: if isAuthenticated() && isValidProject(request.resource.data);
+      
+      // Update: Only the project creator can update it. creatorId and createdAt are immutable.
+      // OR any user can update the likes array
+      allow update: if isAuthenticated() && 
+                    (
+                      (resource.data.creatorId == request.auth.uid &&
+                       isValidProject(request.resource.data) &&
+                       request.resource.data.creatorId == resource.data.creatorId &&
+                       (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt))
+                      ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) &&
+                       request.resource.data.likes is list)
+                    );
+                    
+      // Delete: Only the project creator can delete it
+      allow delete: if isAuthenticated() && resource.data.creatorId == request.auth.uid;
+    }
+
+    match /projects/{projectId}/comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidComment(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid && isValidComment(request.resource.data) && (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+    }
+
+    match /opportunities/{oppId} {
+      // Read: Users can read opportunities generated for them
+      allow read: if isAuthenticated() && resource.data.generatedFor == request.auth.uid;
+      
+      // Create: Users can create opportunities generated for themselves
+      allow create: if isAuthenticated() && isValidOpportunity(request.resource.data);
+      
+      // Update: Users can update opportunities to save/unsave them
+      allow update: if isAuthenticated() && 
+                    resource.data.generatedFor == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['savedBy']) &&
+                    request.resource.data.savedBy is list;
+                    
+      // Delete: Users can delete opportunities generated for them
+      allow delete: if isAuthenticated() && resource.data.generatedFor == request.auth.uid;
+    }
+
+    match /notifications/{notifId} {
+      // Read: Users can read their own notifications
+      allow read: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      
+      // Create: Users can create notifications for others
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      
+      // Update: Users can update their own notifications (e.g., mark as read)
+      allow update: if isAuthenticated() && 
+                    resource.data.recipientId == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+                    request.resource.data.read is bool;
+                    
+      allow delete: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && (resource == null || request.auth.uid in resource.data.participants);
+      allow create: if isAuthenticated() && isValidConversation(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.participants && isValidConversation(request.resource.data);
+    }
+
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow read: if isAuthenticated() && 
+                  exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+                  request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      allow create: if isAuthenticated() && 
+                    isValidMessage(request.resource.data) && 
+                    exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+                    request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      allow update: if isAuthenticated() && 
+                    exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+                    request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reports', 'reportedBy', 'status']) &&
+                    request.resource.data.reports == resource.data.reports + 1 &&
+                    request.auth.uid in request.resource.data.reportedBy &&
+                    !(request.auth.uid in resource.data.reportedBy) &&
+                    (request.resource.data.status == resource.data.status || (request.resource.data.status == 'hidden' && request.resource.data.reports >= 3));
+    }
+
+    match /users/{userId}/messageLogs/{messageId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidMessageLog(request.resource.data);
+    }
+
+    match /users/{userId}/moderation/status {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+                    request.resource.data.flagCount == 1 && 
+                    request.resource.data.restricted == false;
+      allow update: if isOwner(userId) && 
+                    request.resource.data.flagCount == resource.data.flagCount + 1 &&
+                    (request.resource.data.restricted == (request.resource.data.flagCount >= 5));
+    }
+
+    match /flaggedMessages/{messageId} {
+      allow read: if false; // Only admins should read this
+      allow create: if isAuthenticated() && isValidFlaggedMessage(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reports']) &&
+                    request.resource.data.reports == resource.data.reports + 1;
+    }
+  }
+}
